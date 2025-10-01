@@ -1,0 +1,7 @@
+.idea
+automation/done
+automation/scraped_data
+.env
+_pycache_
+__pycache__
+automation/utils/chrome-dir
