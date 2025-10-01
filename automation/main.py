@@ -402,19 +402,51 @@ def scrape(search_keyword: str = 'Médecin', search_location: str = 'bordeaux', 
 
 
 def parse_args(argv: Optional[List[str]] = None):
+    """Parse CLI arguments. Keyword and location are optional; will prompt if missing."""
     parser = argparse.ArgumentParser(description="Medical directory scraper")
-    parser.add_argument('-k', '--keyword', default=os.getenv('SCRAPER_KEYWORD', 'Médecin'), help='Search keyword')
-    parser.add_argument('-l', '--location', default=os.getenv('SCRAPER_LOCATION', 'bordeaux'), help='Search location / city')
+    parser.add_argument('-k', '--keyword', help='Search keyword (if omitted, you will be prompted)')
+    parser.add_argument('-l', '--location', help='Search location / city (if omitted, you will be prompted)')
     parser.add_argument('--headless', action='store_true', default=os.getenv('SCRAPER_HEADLESS', 'false').lower() == 'true', help='Run browser in headless mode')
     parser.add_argument('--profile-retry', type=int, default=2, help='Retries per profile before marking failed')
     return parser.parse_args(argv)
 
 
+def _prompt_with_default(prompt: str, default: str) -> str:
+    """Prompt the user for input with a default value. Returns the provided or default value.
+    Falls back silently to default if stdin is not interactive or raises EOFError."""
+    try:
+        user_input = input(f"{prompt} [{default}]: ").strip()
+        return user_input or default
+    except (EOFError, KeyboardInterrupt):
+        logger.info("Input not provided interactively; using default value.")
+        return default
+
+
 def main():  # Retain original entrypoint name
     args = parse_args()
+
+    # Resolve keyword & location precedence: CLI > .env > interactive default constants
+    env_keyword = os.getenv('SCRAPER_KEYWORD')
+    env_location = os.getenv('SCRAPER_LOCATION')
+
+    keyword = args.keyword or env_keyword
+    location = args.location or env_location
+
+    # Interactive prompt if still missing
+    if not keyword:
+        keyword = _prompt_with_default("Enter search keyword", 'Médecin')
+    if not location:
+        location = _prompt_with_default("Enter search location", 'bordeaux')
+
+    if not keyword or not location:
+        logger.critical("Keyword or location still missing after prompt. Aborting.")
+        return
+
+    logger.info(f"Starting scrape with keyword='{keyword}' location='{location}' (headless={args.headless})")
+
     scrape(
-        search_keyword=args.keyword,
-        search_location=args.location,
+        search_keyword=keyword,
+        search_location=location,
         headless=args.headless,
         profile_retry=args.profile_retry
     )

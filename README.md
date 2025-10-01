@@ -1,28 +1,29 @@
-# Medical Directory Scraper
+# Healthcare Professionals Scraper
 
-Automated scraper for https://annuaire.sante.fr collecting medical professional profiles.
+Automated Selenium-based scraper for https://annuaire.sante.fr collecting medical professional profile data with robust error handling and structured outputs.
 
 ## Key Features
-- Robust Selenium interactions with retries and defensive waits
+- Interactive keyword & location prompt (if not supplied via CLI or environment)
+- Robust Selenium interactions with retries and defensive waits (see `utils/utils.py`)
 - Structured JSON Lines output + aggregated pretty JSON array
 - CSV export with UTF-8 BOM (Excel friendly)
 - Idempotent runs using per-search done file (RPPS tracking)
 - Per-profile retry logic with statistics (processed / skipped / failed)
 - Normalizes SIREN before API calls
-- Optional SIREN vs Papers API fallback
+- Optional SIREN API first, fallback to Papers API (if SIREN unavailable)
 - Graceful handling of keyboard interrupts & fatal errors
-- Logging to console and rotating file `logs/scraper.log`
+- Logging to console + file `logs/scraper.log`
 - CLI arguments & .env overrides
 
-## Output Files (for keyword/location example `Médecin` / `bordeaux`)
+## Output Files (example for keyword `Médecin` and location `bordeaux`)
 ```
 scraped_data/
-  Médecin_bordeaux.csv           # flat tabular data
-  Médecin_bordeaux.jsonl         # one JSON object per line (structured)
-  Médecin_bordeaux.json          # aggregated pretty JSON array
+  Médecin_bordeaux.csv    # flat tabular data
+  Médecin_bordeaux.jsonl  # one structured JSON object per line
+  Médecin_bordeaux.json   # aggregated pretty JSON array
 
 done/
-  Médecin_bordeaux.txt           # list of processed RPPS numbers
+  Médecin_bordeaux.txt    # list of processed RPPS numbers
 ```
 
 ## Structured JSON Schema (each record)
@@ -33,25 +34,14 @@ done/
     "rpps_number": "string|null",
     "specialty": "string|null",
     "finess_id": "string|null",
-    "siren": "string|null",   // first 9 digits if available
+    "siren": "string|null",
     "siret": "string|null",
     "naf_ape_code": "string|null",
-    "date_creation": "string|null"  // as provided by API
+    "date_creation": "string|null"
   },
-  "contact": {
-    "phone": "string|null",
-    "fax": "string|null"
-  },
-  "address": {
-    "raw": "string|null",
-    "postal_code": "string|null",
-    "city": "string|null",
-    "region": "string|null"
-  },
-  "meta": {
-    "source_url": "string",
-    "scraped_at": "ISO-8601 UTC timestamp"
-  }
+  "contact": {"phone": "string|null", "fax": "string|null"},
+  "address": {"raw": "string|null", "postal_code": "string|null", "city": "string|null", "region": "string|null"},
+  "meta": {"source_url": "string", "scraped_at": "ISO-8601 UTC timestamp"}
 }
 ```
 
@@ -60,10 +50,11 @@ done/
 |----------|---------|---------|
 | PAPERS_API_KEY | Key for Papers fallback API | (none) |
 | SIREN_API_KEY  | Key for SIREN API | (none) |
-| SCRAPER_KEYWORD | Default search keyword | Médecin |
-| SCRAPER_LOCATION | Default search location | bordeaux |
+| SCRAPER_KEYWORD | Default search keyword (used if CLI missing) | (none -> prompt) |
+| SCRAPER_LOCATION | Default search location (used if CLI missing) | (none -> prompt) |
 | SCRAPER_HEADLESS | Run browser headless (true/false) | false |
-| SCRAPER_DISABLE_JS | Force disabling JS (not recommended) | false |
+
+If `SCRAPER_KEYWORD` or `SCRAPER_LOCATION` are not set and not passed as CLI args, you will be prompted interactively (with defaults `Médecin` / `bordeaux`).
 
 ## Installation
 ```cmd
@@ -73,29 +64,37 @@ pip install -r requirements.txt
 ```
 
 ## Usage
-Basic (uses defaults / .env):
+Run with interactive prompts (if env/CLI not set):
 ```cmd
 python -m automation.main
 ```
-Custom run:
+Specify keyword & location explicitly:
 ```cmd
-python -m automation.main -k Médecin -l paris --headless --profile-retry 3
+python -m automation.main -k Medecin -l paris --headless --profile-retry 3
+```
+Environment + partial CLI (example, only location override):
+```cmd
+set SCRAPER_KEYWORD=Médecin
+python -m automation.main -l lyon
 ```
 
 ## Error Handling & Stability
-- Retries on navigation & element interaction
+- Retries on element interactions lives inside helper utility functions
 - Defensive checks before writing outputs
-- Aggregates JSON only after browser closes
-- Normalizes SIREN digits to avoid API errors
-- Skips malformed JSONL lines gracefully
+- Aggregates JSON only after browser closes (in `finally` block)
+- Skips malformed JSONL lines gracefully when building pretty JSON
+- Catches and logs unexpected exceptions per profile and per workflow
 
-## Updating / Extending
-- Add new fields: extract in `process_profile`, add to `flat_record`, map in `build_structured_record`.
-- Additional APIs: extend `fetch_company_data` with new conditional branches.
+## Extending
+1. Add field extraction in `process_profile`.
+2. Include it in `flat_record`.
+3. Map it into `build_structured_record` for nested JSON.
+4. (Optional) Add API enrichment logic in `fetch_company_data`.
 
-## Notes
-- Disabling JavaScript will likely break dynamic content; only set `SCRAPER_DISABLE_JS=true` for controlled tests.
-- Respect target site terms of service and rate limits.
+## Practical Notes
+- Respect site terms and rate limits; adjust implicit waits / throttling if needed.
+- Headless mode can behave differently on some dynamic pages; test both modes.
+- The RPPS done file lets you resume without duplicating records.
 
-## License
-Internal / client project (no explicit OSS license). Update if distribution is intended.
+## License / Status
+Internal / client project (no explicit OSS license). Add a license before redistribution.
