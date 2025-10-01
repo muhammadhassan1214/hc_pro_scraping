@@ -96,5 +96,5 @@ python -m automation.main -l lyon
 - Headless mode can behave differently on some dynamic pages; test both modes.
 - The RPPS done file lets you resume without duplicating records.
 
-## License / Status
-Internal / client project (no explicit OSS license). Add a license before redistribution.
+## License
+MIT License
