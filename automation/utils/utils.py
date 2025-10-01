@@ -1,15 +1,13 @@
-from selenium import webdriver
-import time
 import os
+import time
 import logging
 from typing import Optional
-from selenium.webdriver import ActionChains
+from selenium import webdriver
 from webdriver_manager.chrome import ChromeDriverManager
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.chrome.service import Service
-from selenium.webdriver.support.select import Select
 from selenium.common.exceptions import (
     TimeoutException, NoSuchElementException, WebDriverException,
     ElementNotInteractableException, StaleElementReferenceException
@@ -115,29 +113,6 @@ def input_element(driver, by_locator, text: str, timeout: int = 10, max_retries:
         return safe_execute_with_retry(_input_text, max_retries)
     except Exception as e:
         logger.error(f"Critical error in input_element: {e}")
-        return False
-
-
-def move_to_element(driver, locator, timeout: int = 10, max_retries: int = 3) -> bool:
-    """Move to element with exception handling."""
-    def _move():
-        try:
-            element = WebDriverWait(driver, timeout).until(EC.visibility_of_element_located(locator))
-            actions = ActionChains(driver)
-            actions.move_to_element(element).perform()
-            time.sleep(0.3)
-            return True
-        except TimeoutException:
-            logger.error(f"Element not visible for hover within {timeout} seconds: {locator}")
-            return False
-        except WebDriverException as e:
-            logger.error(f"Action chain error: {e}")
-            return False
-
-    try:
-        return safe_execute_with_retry(_move, max_retries)
-    except Exception as e:
-        logger.error(f"Critical error in move_to_element: {e}")
         return False
 
 
@@ -259,46 +234,6 @@ def check_element_exists(driver, by_locator, timeout: int = 3) -> bool:
         return False
 
 
-def select_by_text(driver, by_locator, text: str, timeout: int = 10, max_retries: int = 3) -> bool:
-    """Select dropdown option by text with exception handling."""
-    def _select():
-        try:
-            select_element = WebDriverWait(driver, timeout).until(EC.element_to_be_clickable(by_locator))
-            select = Select(select_element)
-
-            # Check if option exists
-            options = [option.text.strip() for option in select.options]
-            if text not in options:
-                logger.error(f"Option '{text}' not found. Available options: {options}")
-                return False
-
-            select.select_by_visible_text(text)
-            time.sleep(0.5)
-
-            # Verify selection
-            selected_option = select.first_selected_option.text.strip()
-            if selected_option != text:
-                logger.warning(f"Selection verification failed. Expected: '{text}', Selected: '{selected_option}'")
-                return False
-
-            return True
-        except TimeoutException:
-            logger.error(f"Select element not found within {timeout} seconds: {by_locator}")
-            return False
-        except (NoSuchElementException, ElementNotInteractableException) as e:
-            logger.error(f"Select operation failed: {e}")
-            return False
-        except Exception as e:
-            logger.error(f"Unexpected error in select operation: {e}")
-            return False
-
-    try:
-        return safe_execute_with_retry(_select, max_retries)
-    except Exception as e:
-        logger.error(f"Critical error in select_by_text: {e}")
-        return False
-
-
 def wait_for_page_load(driver, timeout: int = 30) -> bool:
     """Wait for page to fully load with exception handling."""
     try:
@@ -333,20 +268,6 @@ def safe_navigate_to_url(driver, url: str, max_retries: int = 3) -> bool:
 
     logger.error(f"Failed to navigate to {url} after {max_retries} attempts")
     return False
-
-
-def get_element_attribute(driver, by_locator, attribute: str, timeout: int = 10, default: str = "") -> str:
-    """Get element attribute with exception handling."""
-    try:
-        element = WebDriverWait(driver, timeout).until(EC.presence_of_element_located(by_locator))
-        attr_value = element.get_attribute(attribute)
-        return attr_value if attr_value is not None else default
-    except TimeoutException:
-        logger.warning(f"Element not found for attribute '{attribute}' within {timeout} seconds: {by_locator}")
-        return default
-    except Exception as e:
-        logger.error(f"Error getting element attribute '{attribute}': {e}")
-        return default
 
 
 def wait_while_element_is_displaying(driver, by_locator, timeout=10):

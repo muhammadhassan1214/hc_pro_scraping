@@ -1,15 +1,14 @@
+import re
 import os
 import json
 import logging
-from datetime import datetime, UTC
-from typing import Optional, Dict, Any, List
 import argparse
-
 import pandas as pd
 from dotenv import load_dotenv
+from datetime import datetime, UTC
 from selenium.webdriver.common.by import By
+from typing import Optional, Dict, Any, List, Tuple
 from selenium.common.exceptions import WebDriverException
-
 from utils.apis.siren_api import get_data_from_siren_api
 from utils.apis.papers_api import get_data_from_papers_api
 from utils.utils import (
@@ -18,10 +17,6 @@ from utils.utils import (
     get_element_text, safe_navigate_to_url,
     wait_while_element_is_displaying,
     check_element_exists
-)
-from utils.functions import (
-    extract_postal_code_and_city,
-    xpath_of_text, _read_done_set
 )
 
 # Load environment variables
@@ -45,6 +40,32 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 # Helper Functions
 # ---------------------------------------------------------------------------
+def extract_postal_code_and_city(address_text: str) -> Tuple[str, str] | Tuple[None, None]:
+    pattern = r"(\d{5})\s+([A-Z\s]+)(?: CEDEX)?"
+
+    match = re.search(pattern, address_text.strip().upper())
+
+    if match:
+        postal_code = match.group(1)
+        city_name = match.group(2).strip()
+        if city_name.endswith(" CEDEX"):
+            city_name = city_name[:-6].strip()
+
+        return postal_code, city_name
+    else:
+        return None, None
+
+
+def xpath_of_text(text: str):
+    return f"//span[contains(text(), '{text}')]/following-sibling::span[1]"
+
+
+def _read_done_set(path: str = 'done.txt') -> set[str]:
+    try:
+        with open(path, 'r', encoding='utf-8') as f:
+            return set(l.strip() for l in f if l.strip())
+    except FileNotFoundError:
+        return set()
 
 def append_json_record(path: str, record: Dict[str, Any]) -> None:
     """Append a single JSON record (as JSON Lines) to the specified file."""
@@ -173,24 +194,24 @@ def process_profile(driver, href: str, loading_selector, done_rpps: set, jsonl_p
             logger.info(f"No data found for URL: {href}")
             return None
 
-        name = get_element_text(driver, (By.CSS_SELECTOR, "div[class='details_entete_synthese'] > div[class='nom_prenom']"), timeout=3)
-        rpps_number_text = get_element_text(driver, (By.CSS_SELECTOR, "div[class='rpps'] > span"), timeout=3)
+        name = get_element_text(driver, (By.CSS_SELECTOR, "div[class='details_entete_synthese'] > div[class='nom_prenom']"), timeout=1)
+        rpps_number_text = get_element_text(driver, (By.CSS_SELECTOR, "div[class='rpps'] > span"), timeout=1)
         rpps_number = rpps_number_text.split(':', 1)[1].strip() if ':' in rpps_number_text else None
 
         if rpps_number and rpps_number in done_rpps:
             logger.info(f"RPPS {rpps_number} already processed (detected post-load); skipping.")
             return None
 
-        phone_number = get_element_text(driver, (By.XPATH, xpath_of_text('Téléphone')), timeout=2)
-        fax_number = get_element_text(driver, (By.XPATH, xpath_of_text('Fax')), timeout=2)
-        finess_id = get_element_text(driver, (By.XPATH, xpath_of_text('Identifiant FINESS')), timeout=2)
-        siren_annuaire = get_element_text(driver, (By.XPATH, xpath_of_text('SIREN')), timeout=2)
-        address = get_element_text(driver, (By.XPATH, xpath_of_text('Adresse :')), timeout=2)
+        phone_number = get_element_text(driver, (By.XPATH, xpath_of_text('Téléphone')), timeout=1)
+        fax_number = get_element_text(driver, (By.XPATH, xpath_of_text('Fax')), timeout=1)
+        finess_id = get_element_text(driver, (By.XPATH, xpath_of_text('Identifiant FINESS')), timeout=1)
+        siren_annuaire = get_element_text(driver, (By.XPATH, xpath_of_text('SIREN')), timeout=1)
+        address = get_element_text(driver, (By.XPATH, xpath_of_text('Adresse :')), timeout=1)
         adress_2_selector = (By.XPATH, "//span[contains(@class, 'label FINESS')]/following-sibling::span[1]")
-        address_2 = get_element_text(driver, adress_2_selector, timeout=2)
+        address_2 = get_element_text(driver, adress_2_selector, timeout=1)
         postal_code, city = extract_postal_code_and_city(address_2) if address_2 else (None, None)
-        region = get_element_text(driver, (By.XPATH, xpath_of_text('Région')), timeout=2)
-        specialty = get_element_text(driver, (By.CSS_SELECTOR, "div[class='ico_etat_main'] ~ div"), timeout=2)
+        region = get_element_text(driver, (By.XPATH, xpath_of_text('Région')), timeout=1)
+        specialty = get_element_text(driver, (By.CSS_SELECTOR, "div[class='ico_etat_main'] ~ div"), timeout=1 )
 
         fetched_data = fetch_company_data(name, siren_annuaire)
 

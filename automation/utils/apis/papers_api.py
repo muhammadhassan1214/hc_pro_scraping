@@ -28,7 +28,8 @@ def get_data_from_papers_api(query: str, api_key: str) -> dict:
 
     response = requests.get(url, headers=headers, params=params)
     r = response.json()["resultats"] if 'resultats' in response.json() else []
-    if r:
+    print(response.status_code)
+    if r and response.status_code == 200:
         siren = r[0].get("siren")
         siege = r[0].get("siege")
         siret = siege.get("siret")
